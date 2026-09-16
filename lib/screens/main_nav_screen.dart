@@ -1,3 +1,7 @@
+import 'savings_screen.dart';
+import 'groups_screen.dart';
+import 'household_screen.dart';
+import 'month_screen.dart';
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 
@@ -11,13 +15,13 @@ class MainNavScreen extends StatefulWidget {
 class _MainNavScreenState extends State<MainNavScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _views = const [
-    HomeScreen(),
-    Center(child: Text('Pantalla: Gastos del Mes', style: TextStyle(fontSize: 18))),
-    Center(child: Text('Pantalla: Organización del Hogar', style: TextStyle(fontSize: 18))),
-    Center(child: Text('Pantalla: Juntadas / Grupos', style: TextStyle(fontSize: 18))),
-    Center(child: Text('Pantalla: Objetivos de Ahorro', style: TextStyle(fontSize: 18))),
-  ];
+final List<Widget> _views = const [
+  HomeScreen(),
+  MonthScreen(), // <--- acá colocamos la pantalla real
+  HouseholdScreen(),
+  GroupsScreen(),
+  SavingsScreen(),
+];
 
   @override
   Widget build(BuildContext context) {
