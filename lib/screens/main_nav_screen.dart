@@ -1,9 +1,11 @@
-import 'savings_screen.dart';
-import 'groups_screen.dart';
-import 'household_screen.dart';
-import 'month_screen.dart';
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import 'dashboard/home_screen.dart';
+import 'dashboard/month_screen.dart';
+import 'household/household_screen.dart';
+import 'groups/groups_screen.dart';
+import 'savings/savings_screen.dart';
+import 'expenses/add_expense_screen.dart';
+import 'settings/profile_screen.dart';
 
 class MainNavScreen extends StatefulWidget {
   const MainNavScreen({super.key});
@@ -15,55 +17,70 @@ class MainNavScreen extends StatefulWidget {
 class _MainNavScreenState extends State<MainNavScreen> {
   int _selectedIndex = 0;
 
-final List<Widget> _views = const [
-  HomeScreen(),
-  MonthScreen(), // <--- acá colocamos la pantalla real
-  HouseholdScreen(),
-  GroupsScreen(),
-  SavingsScreen(),
-];
+  final List<Widget> _views = const [
+    HomeScreen(),
+    MonthScreen(),
+    HouseholdScreen(),
+    GroupsScreen(),
+    SavingsScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'FinanzApp',
-              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            Text(
-              'Agosto 2026',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.amber),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: Colors.purple.shade100,
-              radius: 16,
-              child: const Text('😊', style: TextStyle(fontSize: 14)),
-            ),
-          ),
-        ],
-      ),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'FinanzApp',
+                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  Text(
+                    'Agosto 2026',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.amber),
+                  onPressed: () {},
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.purple.shade100,
+                      radius: 16,
+                      child: const Text('😊', style: TextStyle(fontSize: 14)),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : null,
       body: _views[_selectedIndex],
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF6C63FF),
+        backgroundColor: const Color(0xFF4C68FF),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

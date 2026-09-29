@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/main_nav_screen.dart';
+
+import 'screens/auth/onboarding_screen.dart';
 
 void main() {
   runApp(const FinanzApp());
@@ -13,11 +14,8 @@ class FinanzApp extends StatelessWidget {
     return MaterialApp(
       title: 'FinanzApp',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        useMaterial3: true,
-      ),
-      home: const MainNavScreen(),
+      theme: ThemeData(fontFamily: 'Roboto', useMaterial3: true),
+      home: const OnboardingScreen(),
     );
   }
 }
