@@ -24,7 +24,8 @@ import 'package:flutter_application_1/data/servicio_hogar_repository.dart';
 import 'package:flutter_application_1/model/model.dart';
 
 // Ruta aislada para las bases de datos de estos tests.
-const String _dirTest = '/tmp/opencode/finanzapp_test_dbs_mock';
+final String _dirTest =
+    '${Directory.systemTemp.path}${Platform.pathSeparator}finanzapp_test_dbs_mock';
 
 Future<void> esperarBD(WidgetTester tester) async {
   for (int i = 0; i < 6; i++) {

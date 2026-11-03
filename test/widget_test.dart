@@ -21,7 +21,8 @@ import 'package:flutter_application_1/model/model.dart';
 import 'package:flutter_application_1/data/usuario_repository.dart';
 
 // Ruta aislada para las bases de datos de los tests.
-const String _dirTest = '/tmp/opencode/finanzapp_test_dbs';
+final String _dirTest =
+    '${Directory.systemTemp.path}${Platform.pathSeparator}finanzapp_test_dbs';
 
 // Las operaciones de SQLite hacen E/S real (abrir archivos, escribir), por lo
 // que NO alcanza con pumpAndSettle: hay que dar vueltas al event loop real del

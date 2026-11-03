@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 import 'dart:io';
 
 import 'data/dbhelper.dart';
@@ -22,8 +23,9 @@ Future<void> main() async {
   // Se busca por email en el registro GLOBAL de cuentas, de modo que funcione
   // aunque la sesion activa apunte a otra base de datos.
   await DbHelper().setCurrentUser(1);
-  final Usuario? usuarioPrueba =
-      await DbHelper().getUsuarioPorEmail('test@finanzapp.com');
+  final Usuario? usuarioPrueba = await DbHelper().getUsuarioPorEmail(
+    'test@finanzapp.com',
+  );
   if (usuarioPrueba == null) {
     final int idPrueba = await UsuarioRepository().crearUsuario(
       nombre: 'Usuario Test',
@@ -49,9 +51,9 @@ class _FinanzAppState extends State<FinanzApp> {
   bool _autenticado = false;
 
   Future<void> _abrirLogin(BuildContext ctx) async {
-    final int? userId = await Navigator.of(ctx).push<int>(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
+    final int? userId = await Navigator.of(
+      ctx,
+    ).push<int>(MaterialPageRoute(builder: (context) => const LoginScreen()));
     if (userId != null && mounted) {
       setState(() {
         _autenticado = true;
@@ -60,9 +62,9 @@ class _FinanzAppState extends State<FinanzApp> {
   }
 
   Future<void> _abrirRegistro(BuildContext ctx) async {
-    final int? userId = await Navigator.of(ctx).push<int>(
-      MaterialPageRoute(builder: (context) => const UsuarioScreen()),
-    );
+    final int? userId = await Navigator.of(
+      ctx,
+    ).push<int>(MaterialPageRoute(builder: (context) => const UsuarioScreen()));
     if (userId != null && mounted) {
       setState(() {
         _autenticado = true;
@@ -84,10 +86,7 @@ class _FinanzAppState extends State<FinanzApp> {
     return MaterialApp(
       title: 'FinanzApp',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        useMaterial3: true,
-      ),
+      theme: ThemeData(fontFamily: 'Roboto', useMaterial3: true),
       home: !_autenticado
           ? WelcomeScreen(
               onIniciarSesion: _abrirLogin,
