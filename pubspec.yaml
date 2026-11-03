@@ -35,6 +35,12 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Base de datos local SQLite (persistencia asíncrona de la app).
+  sqflite: ^2.4.5
+
+  # SQLite para pruebas/escritorio (Linux/Windows) mediante FFI.
+  sqflite_common_ffi: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
