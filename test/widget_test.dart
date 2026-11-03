@@ -15,6 +15,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/data/dbhelper.dart';
+import 'package:flutter_application_1/data/fuente_datos.dart';
 import 'package:flutter_application_1/data/gasto_repository.dart';
 import 'package:flutter_application_1/model/model.dart';
 import 'package:flutter_application_1/data/usuario_repository.dart';
@@ -39,6 +40,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    // Estos tests verifican la PERSISTENCIA REAL: se desactiva el modo demo.
+    FuenteDatos.usarMock = false;
+
     // SQLite corriendo en el mismo proceso: evita hilos/excepciones que
     // compliquen el control de tiempo de los tests.
     sqfliteFfiInit();
