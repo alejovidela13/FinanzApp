@@ -58,6 +58,12 @@ void main() {
     await databaseFactory.setDatabasesPath(dir.path);
   });
 
+  // La sesion guardada en disco hace que la app arranque directo en el
+  // inicio: cada test tiene que partir de la pantalla de bienvenida.
+  setUp(() async {
+    await DbHelper().cerrarSesion();
+  });
+
   testWidgets('FinanzApp muestra la pantalla de bienvenida', (WidgetTester tester) async {
     await tester.pumpWidget(const FinanzApp());
     await tester.pumpAndSettle();
@@ -112,7 +118,7 @@ void main() {
 
       // El resumen del mes siempre esta visible: confirma que el gasto se
       // guardo en SQLite y se reflejo en la interfaz.
-      expect(find.text('Total \$1500 • 1 registro(s)'), findsOneWidget);
+      expect(find.text('\$1500'), findsWidgets);
 
       // El item del gasto queda por debajo de la tarjeta principal, asi que
       // hay que desplazar la lista para encontrarlo.
@@ -123,7 +129,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Alquiler'), findsOneWidget);
-      expect(find.text('Vence hoy'), findsOneWidget);
+      // El item muestra la fecha en que se pago, sin textos de vencimiento.
+      expect(find.text('Vence hoy'), findsNothing);
+      expect(find.text('Vencido'), findsNothing);
+      expect(find.textContaining('General •'), findsOneWidget);
 
       // ---------------------------------------------------------------
       // 4. SE CREA LA CUENTA "BRUNO" -> SU BASE ESTA VACIA (AISLAMIENTO)

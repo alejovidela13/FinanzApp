@@ -5,6 +5,7 @@ import '../data/ingreso_repository.dart';
 import '../data/meta_ahorro_repository.dart';
 import '../model/model.dart';
 import '../util/utils.dart';
+import 'add_expense_sheet.dart';
 
 // Datos que consume la pantalla de inicio, cargados todos juntos desde los
 // repositorios para mostrar un unico estado coherente.
@@ -66,13 +67,97 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => const _DialogoIngreso(),
     );
     if (guardado == true && mounted) {
-      // La carga arranca antes del setState: el callback de setState tiene
-      // que ser sincrono (no puede devolver un Future).
-      final Future<_DatosInicio> futuro = _cargarDatos();
-      setState(() {
-        _datosFuture = futuro;
-      });
+      _recargar();
     }
+  }
+
+  // Abre el mismo dialogo en modo edicion sobre un ingreso existente.
+  Future<void> _editarIngreso(Ingreso ingreso) async {
+    final bool? guardado = await showDialog<bool>(
+      context: context,
+      builder: (context) => _DialogoIngreso(ingreso: ingreso),
+    );
+    if (guardado == true && mounted) {
+      _recargar();
+    }
+  }
+
+  // Elimina un ingreso tras confirmar con el usuario.
+  Future<void> _eliminarIngreso(Ingreso ingreso) async {
+    final bool? confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar ingreso'),
+        content: Text('¿Eliminar "${ingreso.concepto}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !mounted) {
+      return;
+    }
+    await IngresoRepository().deleteIngreso(ingreso.id!);
+    if (mounted) {
+      _recargar();
+    }
+  }
+
+  // Elimina un gasto tras confirmar con el usuario.
+  Future<void> _eliminarGasto(Gasto gasto) async {
+    final bool? confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar gasto'),
+        content: Text('¿Eliminar "${gasto.concepto}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !mounted) {
+      return;
+    }
+    await GastoRepository().deleteGasto(gasto.id!);
+    if (mounted) {
+      _recargar();
+    }
+  }
+
+  // Abre la hoja de alta/edicion de gastos y recarga al volver.
+  Future<void> _abrirGasto({Gasto? gasto}) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AddExpenseSheet(gasto: gasto),
+    );
+    if (mounted) {
+      _recargar();
+    }
+  }
+
+  // Vuelve a pedir los datos a los repositorios y reconstruye la pantalla.
+  void _recargar() {
+    // La carga arranca antes del setState: el callback de setState tiene
+    // que ser sincrono (no puede devolver un Future).
+    final Future<_DatosInicio> futuro = _cargarDatos();
+    setState(() {
+      _datosFuture = futuro;
+    });
   }
 
   @override
@@ -94,12 +179,60 @@ class _HomeScreenState extends State<HomeScreen> {
     final double totalMes = totalGastos(gastosMes);
     final double totalIngresosMes = totalIngresos(ingresosDelMes(datos.ingresos, hoy));
     final double ahorroTotal = totalAhorrado(datos.metas);
+    final double saldo = saldoTotal(gastos, datos.ingresos, datos.metas);
     final List<MapEntry<String, double>> categorias = categoriasOrdenadas(gastosMes);
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // Tarjeta principal: gastos del mes calculados desde SQLite.
+        // Tarjeta principal: cuanta plata hay disponible hoy.
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF232526), Color(0xFF414345)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Saldo total',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                formatearMoneda(saldo),
+                style: TextStyle(
+                  color: saldo >= 0 ? Colors.greenAccent : Colors.redAccent,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                saldo >= 0
+                    ? 'Plata que tenés disponible para gastar'
+                    : 'Gastaste más de lo que ingresó',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Ingresos ${formatearMoneda(totalIngresos(datos.ingresos))} '
+                '• Gastos ${formatearMoneda(totalGastos(gastos))} '
+                '• Ahorros ${formatearMoneda(ahorroTotal)}',
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Tarjeta de gastos del mes calculados desde SQLite.
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -168,6 +301,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 16),
 
+        // Alta de ingresos: permite cargar lo que el usuario quiera.
+        OutlinedButton.icon(
+          onPressed: _agregarIngreso,
+          icon: const Icon(Icons.add_circle_outline),
+          label: const Text('Agregar ingreso'),
+        ),
+
+        // Lista de ingresos del mes: cada item permite editar o eliminar.
+        // Solo se muestra cuando la cuenta tiene ingresos cargados.
+        if (datos.ingresos.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildSeccionIngresos(datos.ingresos),
+        ],
+
+        const SizedBox(height: 24),
+
+        // Lista de gastos entregada dinamicamente por el repositorio.
+        // El total y la cantidad ya los muestra la tarjeta de arriba.
+        if (gastosMes.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Aun no hay gastos registrados.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          )
+        else
+          ...gastosMes.map((Gasto gasto) => _buildGastoItem(gasto)),
+
+        const SizedBox(height: 24),
+
         // Fila de 3 tarjetas: valores reales (ingresos, ahorros y gastos).
         Row(
           children: [
@@ -193,66 +357,110 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ],
+    );
+  }
+  Widget _buildSeccionIngresos(List<Ingreso> todos) {
+    final List<Ingreso> ingresosMes = ingresosDelMes(todos, DateTime.now());
 
-        const SizedBox(height: 12),
-
-        // Alta de ingresos: permite cargar lo que el usuario quiera.
-        OutlinedButton.icon(
-          onPressed: _agregarIngreso,
-          icon: const Icon(Icons.add_circle_outline),
-          label: const Text('Agregar ingreso'),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Seccion Gastos del mes: construida a partir de los datos reales.
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: const [
-                  Icon(Icons.bar_chart, color: Colors.blueAccent),
-                  SizedBox(width: 8),
-                  Text(
-                    'Gastos del mes',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.trending_up, color: Colors.green),
+              SizedBox(width: 8),
               Text(
-                'Total ${formatearMoneda(totalMes)} • ${gastosMes.length} registro(s)',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                'Ingresos del mes',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-
-        // Lista de gastos entregada dinamicamente por el repositorio.
-        if (gastosMes.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Aun no hay gastos registrados.',
+          const SizedBox(height: 4),
+          Text(
+            'Total ${formatearMoneda(totalIngresos(ingresosMes))} • ${ingresosMes.length} registro(s)',
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          if (ingresosMes.isEmpty)
+            const Text(
+              'Aun no hay ingresos este mes.',
               style: TextStyle(color: Colors.grey, fontSize: 13),
+            )
+          else
+            ...ingresosMes.map((Ingreso ingreso) => _buildIngresoItem(ingreso)),
+        ],
+      ),
+    );
+  }
+
+  // Item visual de cada ingreso, con menu de acciones.
+  Widget _buildIngresoItem(Ingreso ingreso) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.green.shade100,
+            child: const Icon(Icons.attach_money, color: Colors.green),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ingreso.concepto,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  formatearFecha(ingreso.fecha),
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
+              ],
             ),
-          )
-        else
-          ...gastosMes.map((Gasto gasto) => _buildGastoItem(gasto)),
-      ],
+          ),
+          Text(
+            '+${formatearMoneda(ingreso.monto)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Colors.green,
+            ),
+          ),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            onSelected: (String accion) {
+              if (accion == 'editar') {
+                _editarIngreso(ingreso);
+              } else if (accion == 'eliminar') {
+                _eliminarIngreso(ingreso);
+              }
+            },
+            itemBuilder: (BuildContext context) => const [
+              PopupMenuItem(value: 'editar', child: Text('Editar')),
+              PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   // Barra apilada: representa el peso de cada categoria sobre el gasto total.
   Widget _buildBarraCategorias(List<MapEntry<String, double>> categorias) {
-    if (categorias.isEmpty) {
+    final double total = categorias.fold<double>(0, (sum, e) => sum + e.value);
+
+    // Sin categorias, o con un total en cero/negativo (posible cuando hay
+    // devoluciones de grupo registradas como gasto negativo), no hay
+    // proporciones que repartir.
+    if (categorias.isEmpty || total <= 0) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Container(
@@ -261,8 +469,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-
-    final double total = categorias.fold<double>(0, (sum, e) => sum + e.value);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
@@ -333,24 +539,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Item visual de cada gasto obtenido del repositorio.
   Widget _buildGastoItem(Gasto gasto) {
-    final DateTime fechaExpiracion =
-        DateTime.tryParse(gasto.expiration) ?? DateTime.now();
-    final int diasRestantes =
-        ValidadorFecha.diasEntreFechas(DateTime.now(), fechaExpiracion);
-
-    final String textoVencimiento;
-    final Color colorVencimiento;
-    if (diasRestantes > 0) {
-      textoVencimiento = 'Expira en $diasRestantes días';
-      colorVencimiento = Colors.green;
-    } else if (diasRestantes == 0) {
-      textoVencimiento = 'Vence hoy';
-      colorVencimiento = Colors.orange;
-    } else {
-      textoVencimiento = 'Vencido';
-      colorVencimiento = Colors.red;
-    }
-
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -365,7 +553,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      child: Row(
+      // Tocar el gasto abre su edicion; el menu ofrece editar o eliminar.
+      child: InkWell(
+        onTap: () => _abrirGasto(gasto: gasto),
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
         children: [
           CircleAvatar(
             backgroundColor: Colors.amber.shade100,
@@ -381,26 +573,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 Text(
-                  '${gasto.categoria} • Vence el ${formatearFecha(gasto.expiration)}',
+                  '${gasto.categoria} • ${formatearFecha(gasto.expiration)}',
                   style: const TextStyle(color: Colors.black54, fontSize: 12),
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatearMoneda(gasto.monto),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              Text(
-                textoVencimiento,
-                style: TextStyle(color: colorVencimiento, fontSize: 11),
-              ),
+          Text(
+            formatearMoneda(gasto.monto),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            onSelected: (String accion) {
+              if (accion == 'editar') {
+                _abrirGasto(gasto: gasto);
+              } else if (accion == 'eliminar') {
+                _eliminarGasto(gasto);
+              }
+            },
+            itemBuilder: (BuildContext context) => const [
+              PopupMenuItem(value: 'editar', child: Text('Editar')),
+              PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -436,9 +634,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Dialogo de alta de ingresos (concepto + monto).
+// Dialogo de alta y edicion de ingresos (concepto + monto + fecha).
 class _DialogoIngreso extends StatefulWidget {
-  const _DialogoIngreso();
+  // Ingreso a editar. Null -> modo alta.
+  final Ingreso? ingreso;
+
+  const _DialogoIngreso({this.ingreso});
 
   @override
   State<_DialogoIngreso> createState() => _DialogoIngresoState();
@@ -448,12 +649,46 @@ class _DialogoIngresoState extends State<_DialogoIngreso> {
   final _formKey = GlobalKey<FormState>();
   final _conceptoController = TextEditingController();
   final _montoController = TextEditingController();
+  late DateTime _fecha;
+
+  bool get _esEdicion => widget.ingreso != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final Ingreso? ingreso = widget.ingreso;
+    if (ingreso != null) {
+      _conceptoController.text = ingreso.concepto;
+      _montoController.text = ingreso.monto.toStringAsFixed(2);
+      _fecha = DateTime.tryParse(ingreso.fecha) ?? DateTime.now();
+    } else {
+      _fecha = DateTime.now();
+    }
+  }
 
   @override
   void dispose() {
     _conceptoController.dispose();
     _montoController.dispose();
     super.dispose();
+  }
+
+  String _aTextoFecha(DateTime fecha) {
+    final String mes = fecha.month.toString().padLeft(2, '0');
+    final String dia = fecha.day.toString().padLeft(2, '0');
+    return '${fecha.year}-$mes-$dia';
+  }
+
+  Future<void> _elegirFecha() async {
+    final DateTime? seleccionada = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (seleccionada != null) {
+      setState(() => _fecha = seleccionada);
+    }
   }
 
   Future<void> _guardar() async {
@@ -465,9 +700,14 @@ class _DialogoIngresoState extends State<_DialogoIngreso> {
     final Ingreso ingreso = Ingreso(
       _conceptoController.text.trim(),
       monto,
-      fechaHoy(),
+      _aTextoFecha(_fecha),
+      widget.ingreso?.id,
     );
-    await IngresoRepository().addIngreso(ingreso);
+    if (_esEdicion) {
+      await IngresoRepository().updateIngreso(ingreso);
+    } else {
+      await IngresoRepository().addIngreso(ingreso);
+    }
     if (mounted) {
       Navigator.of(context).pop(true);
     }
@@ -476,7 +716,7 @@ class _DialogoIngresoState extends State<_DialogoIngreso> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Agregar ingreso'),
+      title: Text(_esEdicion ? 'Editar ingreso' : 'Agregar ingreso'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -503,8 +743,30 @@ class _DialogoIngresoState extends State<_DialogoIngreso> {
                   prefixText: '\$',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Ingresá el monto' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingresá el monto';
+                  }
+                  final double? monto =
+                      double.tryParse(value.replaceAll(',', '.'));
+                  if (monto == null || monto <= 0) {
+                    return 'Ingresá un monto mayor a cero';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _elegirFecha,
+                borderRadius: BorderRadius.circular(8),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Fecha',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today_outlined),
+                  ),
+                  child: Text(formatearFecha(_aTextoFecha(_fecha))),
+                ),
               ),
             ],
           ),
@@ -517,7 +779,7 @@ class _DialogoIngresoState extends State<_DialogoIngreso> {
         ),
         ElevatedButton(
           onPressed: _guardar,
-          child: const Text('Guardar'),
+          child: Text(_esEdicion ? 'Guardar cambios' : 'Guardar'),
         ),
       ],
     );

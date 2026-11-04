@@ -9,6 +9,10 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'usuario_screen.dart';
+import '../data/meta_ahorro_repository.dart';
+import '../data/servicio_hogar_repository.dart';
+import '../model/model.dart';
+import '../util/notificaciones.dart';
 import '../util/utils.dart';
 
 class MainNavScreen extends StatefulWidget {
@@ -23,6 +27,32 @@ class MainNavScreen extends StatefulWidget {
 
 class _MainNavScreenState extends State<MainNavScreen> {
   int _selectedIndex = 0;
+
+  // Cantidad de alertas pendientes de la cuenta (para el punto de la campana).
+  int _pendientes = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _actualizarPendientes();
+  }
+
+  // Recalcula las notificaciones reales de la cuenta y refresca el punto
+  // rojo de la campana. Se vuelve a llamar despues de cada accion que
+  // agrega, edita o elimina datos.
+  Future<void> _actualizarPendientes() async {
+    final List<ServicioHogar> servicios =
+        await ServicioHogarRepository().getServicios();
+    final List<MetaAhorro> metas = await MetaAhorroRepository().getMetas();
+    final int cantidad = generarNotificaciones(
+      servicios: servicios,
+      metas: metas,
+    ).length;
+    if (!mounted) {
+      return;
+    }
+    setState(() => _pendientes = cantidad);
+  }
 
   // Las vistas se construyen dinamicamente para permitir recargas de datos.
   List<Widget> get _views => [
@@ -53,6 +83,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
     // que consumen el repositorio (ej. lista de gastos) muestren la informacion actualizada.
     if (mounted) {
       setState(() {});
+      _actualizarPendientes();
     }
   }
 
@@ -64,6 +95,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
     // datos vacia del nuevo usuario.
     if (userId != null && mounted) {
       setState(() {});
+      _actualizarPendientes();
     }
   }
 
@@ -74,6 +106,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
     // Al iniciar sesion, la app recarga las vistas con la base de datos del usuario.
     if (userId != null && mounted) {
       setState(() {});
+      _actualizarPendientes();
     }
   }
 
@@ -87,6 +120,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
     // Al volver del perfil se refrescan las vistas.
     if (mounted) {
       setState(() {});
+      _actualizarPendientes();
     }
   }
 
@@ -109,7 +143,26 @@ class _MainNavScreenState extends State<MainNavScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.amber),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none, color: Colors.amber),
+                if (_pendientes > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            tooltip: 'Notificaciones ($_pendientes)',
             onPressed: _openNotifications,
           ),
           IconButton(

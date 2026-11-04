@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../data/grupo_repository.dart';
+import '../data/miembro_grupo_repository.dart';
 import '../model/model.dart';
 import '../util/utils.dart';
+import 'grupo_detalle_screen.dart';
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -84,6 +86,17 @@ class _GroupsScreenState extends State<GroupsScreen> {
       await GrupoRepository().deleteGrupo(grupo.id!);
       _recargar();
     }
+  }
+
+  // Abre la ficha del grupo con sus integrantes y deudas individuales.
+  // Al volver se recarga la lista porque el saldo del grupo pudo cambiar.
+  Future<void> _verDeudas(Grupo grupo) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => GrupoDetalleScreen(grupo: grupo),
+      ),
+    );
+    _recargar();
   }
 
   @override
@@ -299,7 +312,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
           ),
         ],
       ),
-      child: Row(
+      // Tocar la tarjeta abre la ficha con las deudas individuales.
+      child: GestureDetector(
+        onTap: () => _verDeudas(grupo),
+        child: Row(
         children: [
           CircleAvatar(
             backgroundColor: const Color(0xFF1E3C72).withAlpha(20),
@@ -336,15 +352,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
           PopupMenuButton<String>(
             tooltip: 'Acciones del grupo',
             onSelected: (valor) {
-              if (valor == 'eliminar') {
+              if (valor == 'ver') {
+                _verDeudas(grupo);
+              } else if (valor == 'eliminar') {
                 _eliminar(grupo);
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'ver', child: Text('Ver deudas')),
+              const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -396,6 +416,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
 }
 
 // Formulario de alta de grupos compartidos.
+//
+// Se cargan los nombres de los integrantes (todavia sin deuda): cada
+// deuda individual se carga despues, desde la ficha del grupo.
 class _DialogoNuevoGrupo extends StatefulWidget {
   const _DialogoNuevoGrupo();
 
@@ -406,8 +429,7 @@ class _DialogoNuevoGrupo extends StatefulWidget {
 class _DialogoNuevoGrupoState extends State<_DialogoNuevoGrupo> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
-  final _integrantesController = TextEditingController(text: '2');
-  final _saldoController = TextEditingController(text: '0');
+  final _integrantesController = TextEditingController();
   String _icono = 'otro';
 
   static const Map<String, String> _nombresIconos = <String, String>{
@@ -421,23 +443,35 @@ class _DialogoNuevoGrupoState extends State<_DialogoNuevoGrupo> {
   void dispose() {
     _nombreController.dispose();
     _integrantesController.dispose();
-    _saldoController.dispose();
     super.dispose();
+  }
+
+  // Separa los nombres por comas y/o saltos de linea, descartando vacios.
+  List<String> _nombresIntegrantes() {
+    return _integrantesController.text
+        .split(RegExp(r'[\n,]+'))
+        .map((String nombre) => nombre.trim())
+        .where((String nombre) => nombre.isNotEmpty)
+        .toList();
   }
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final int integrantes = int.tryParse(_integrantesController.text) ?? 1;
-    final int saldo = int.tryParse(_saldoController.text) ?? 0;
+    final List<String> nombres = _nombresIntegrantes();
+    // El grupo arranca sin deudas: el saldo total es 0 hasta que se carguen
+    // las deudas individuales desde la ficha.
     final Grupo grupo = Grupo(
       _nombreController.text.trim(),
-      integrantes,
-      saldo,
+      nombres.length,
+      0,
       _icono,
     );
-    await GrupoRepository().addGrupo(grupo);
+    final int grupoId = await GrupoRepository().addGrupo(grupo);
+    for (final String nombre in nombres) {
+      await MiembroGrupoRepository().addMiembro(MiembroGrupo(grupoId, nombre, 0));
+    }
     if (mounted) {
       Navigator.of(context).pop(true);
     }
@@ -466,29 +500,17 @@ class _DialogoNuevoGrupoState extends State<_DialogoNuevoGrupo> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _integrantesController,
-                keyboardType: TextInputType.number,
+                minLines: 2,
+                maxLines: 4,
                 decoration: const InputDecoration(
-                  labelText: 'Integrantes',
+                  labelText: 'Integrantes (separados por coma)',
+                  hintText: 'Ej: Ana, Luis, Sofia',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  final int? n = int.tryParse(value ?? '');
-                  if (n == null || n < 1) {
-                    return 'Ingresá un número valido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _saldoController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Saldo (+ te deben / - debes)',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    int.tryParse(value ?? '') == null ? 'Ingresá un número' : null,
+                validator: (value) => (value == null ||
+                        value.split(RegExp(r'[\n,]+')).where((String n) => n.trim().isNotEmpty).isEmpty)
+                    ? 'Ingresá al menos un integrante'
+                    : null,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(

@@ -50,6 +50,31 @@ class FinanzApp extends StatefulWidget {
 class _FinanzAppState extends State<FinanzApp> {
   bool _autenticado = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Si quedo una sesion guardada (login o registro anteriores) y la cuenta
+    // sigue existiendo, la app entra directo al inicio sin pedir login.
+    _restaurarSesion();
+  }
+
+  Future<void> _restaurarSesion() async {
+    final int? userId = await DbHelper().leerSesion();
+    if (userId == null) {
+      return;
+    }
+    final Usuario? usuario = await DbHelper().getUser(userId);
+    if (usuario == null) {
+      // La cuenta fue eliminada: se descarta la sesion guardada.
+      await DbHelper().cerrarSesion();
+      return;
+    }
+    await DbHelper().setCurrentUser(userId);
+    if (mounted) {
+      setState(() => _autenticado = true);
+    }
+  }
+
   Future<void> _abrirLogin(BuildContext ctx) async {
     final int? userId = await Navigator.of(
       ctx,

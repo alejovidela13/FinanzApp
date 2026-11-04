@@ -3,8 +3,15 @@ import '../data/gasto_repository.dart';
 import '../model/model.dart';
 import '../util/utils.dart';
 
+// Hoja de alta (y edicion) de gastos.
+//
+// Sin parametro `gasto` da de alta uno nuevo; con `gasto` permite editar uno
+// existente. En ambos casos el usuario elige la fecha en que pago el gasto.
 class AddExpenseSheet extends StatefulWidget {
-  const AddExpenseSheet({super.key});
+  // Gasto a editar. Null -> modo alta.
+  final Gasto? gasto;
+
+  const AddExpenseSheet({super.key, this.gasto});
 
   @override
   State<AddExpenseSheet> createState() => _AddExpenseSheetState();
@@ -14,13 +21,52 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
   final _conceptController = TextEditingController();
   final _amountController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  String _categoria = categoriasGasto.first;
+  late String _categoria;
+  late DateTime _fecha;
+
+  bool get _esEdicion => widget.gasto != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final Gasto? gasto = widget.gasto;
+    if (gasto != null) {
+      _conceptController.text = gasto.concepto;
+      _amountController.text = gasto.monto.toStringAsFixed(2);
+      _categoria = categoriasGasto.contains(gasto.categoria)
+          ? gasto.categoria
+          : categoriasGasto.first;
+      _fecha = DateTime.tryParse(gasto.expiration) ?? DateTime.now();
+    } else {
+      _categoria = categoriasGasto.first;
+      _fecha = DateTime.now();
+    }
+  }
 
   @override
   void dispose() {
     _conceptController.dispose();
     _amountController.dispose();
     super.dispose();
+  }
+
+  String _aTextoFecha(DateTime fecha) {
+    final String mes = fecha.month.toString().padLeft(2, '0');
+    final String dia = fecha.day.toString().padLeft(2, '0');
+    return '${fecha.year}-$mes-$dia';
+  }
+
+  // Abre el selector de fecha en que se pago el gasto.
+  Future<void> _elegirFecha() async {
+    final DateTime? seleccionada = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (seleccionada != null) {
+      setState(() => _fecha = seleccionada);
+    }
   }
 
   Future<void> _saveExpense() async {
@@ -31,39 +77,40 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
 
     final double amount = double.tryParse(_amountController.text.replaceAll(',', '.')) ?? 0;
     final String concepto = _conceptController.text.trim();
-    final String expiration = fechaHoy();
+    final String expiration = _aTextoFecha(_fecha);
 
-    // Se comparan solo las fechas (sin hora) para que un gasto creado hoy
-    // no se muestre como vencido.
-    final DateTime hoy = DateTime.now();
-    final int diasRestantes = ValidadorFecha.diasEntreFechas(hoy, DateTime.parse(expiration));
-
-    // Alertas: 1 si la notificacion ocurre con el umbral indicado, 0 si no.
-    final int fqYear = diasRestantes <= 365 ? 1 : 0;
-    final int fqHalfYear = diasRestantes <= 180 ? 1 : 0;
-    final int fqMonth = diasRestantes <= 30 ? 1 : 0;
-
+    // Un gasto no vence: los flags de alerta quedan en 0 (solo se conservan
+    // en la base por compatibilidad).
     final Gasto gasto = Gasto(
       concepto,
       amount,
       _categoria,
       expiration,
-      fqYear,
-      fqHalfYear,
-      fqMonth,
+      0,
+      0,
+      0,
+      widget.gasto?.id,
     );
 
     // Persistencia delegada al repositorio (base de datos del usuario activo).
     // Se espera a que termine antes de cerrar el formulario, para que la lista
     // de gastos se recargue con el registro ya guardado.
     try {
-      await GastoRepository().addGasto(gasto);
+      if (_esEdicion) {
+        await GastoRepository().updateGasto(gasto);
+      } else {
+        await GastoRepository().addGasto(gasto);
+      }
     } catch (_) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo guardar el gasto')),
+        SnackBar(
+          content: Text(_esEdicion
+              ? 'No se pudo actualizar el gasto'
+              : 'No se pudo guardar el gasto'),
+        ),
       );
       return;
     }
@@ -74,7 +121,11 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop(gasto);
     messenger.showSnackBar(
-      SnackBar(content: Text('Gasto de \$${amount.toStringAsFixed(2)} agregado')),
+      SnackBar(
+        content: Text(_esEdicion
+            ? 'Gasto actualizado'
+            : 'Gasto de \$${amount.toStringAsFixed(2)} agregado'),
+      ),
     );
   }
 
@@ -90,9 +141,9 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Agregar gasto',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                _esEdicion ? 'Editar gasto' : 'Agregar gasto',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -114,7 +165,16 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                   prefixText: '\$',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => (value == null || value.isEmpty) ? 'Ingresá el monto' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingresá el monto';
+                  }
+                  final double? monto = double.tryParse(value.replaceAll(',', '.'));
+                  if (monto == null || monto <= 0) {
+                    return 'Ingresá un monto mayor a cero';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -130,10 +190,24 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                   setState(() => _categoria = valor ?? categoriasGasto.first);
                 },
               ),
+              const SizedBox(height: 12),
+              // Fecha en que se pago el gasto (para agruparlo por mes).
+              InkWell(
+                onTap: _elegirFecha,
+                borderRadius: BorderRadius.circular(8),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Fecha',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today_outlined),
+                  ),
+                  child: Text(formatearFecha(_aTextoFecha(_fecha))),
+                ),
+              ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _saveExpense,
-                child: const Text('Guardar gasto'),
+                child: Text(_esEdicion ? 'Guardar cambios' : 'Guardar gasto'),
               ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),

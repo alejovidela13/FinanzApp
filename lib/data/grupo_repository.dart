@@ -27,14 +27,26 @@ class GrupoRepository {
     return filas.map(Grupo.fromObject).toList();
   }
 
-  // CREATE: agrega un grupo.
-  Future<void> addGrupo(Grupo grupo) async {
+  // CREATE: agrega un grupo y devuelve su id en la base.
+  Future<int> addGrupo(Grupo grupo) async {
     if (FuenteDatos.usarMock) {
       grupo.id = FuenteDatos.proximoId(_gruposMock.map((Grupo g) => g.id));
       _gruposMock.add(grupo);
+      return grupo.id!;
+    }
+    return await DbHelper().insertar(_tabla, grupo.toMap());
+  }
+
+  // UPDATE: modifica un grupo (por ejemplo, su saldo tras un pago).
+  Future<void> updateGrupo(Grupo grupo) async {
+    if (FuenteDatos.usarMock) {
+      final int i = _gruposMock.indexWhere((Grupo g) => g.id == grupo.id);
+      if (i >= 0) {
+        _gruposMock[i] = grupo;
+      }
       return;
     }
-    await DbHelper().insertar(_tabla, grupo.toMap());
+    await DbHelper().actualizar(_tabla, grupo.toMap());
   }
 
   // DELETE: elimina un grupo por su id.

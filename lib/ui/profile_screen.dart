@@ -57,7 +57,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (usuario != null) {
         _nombreController.text = usuario.nombre;
         _emailController.text = usuario.email;
-        _passwordController.text = usuario.password;
+        // NUNCA se precarga la contrasena guardada: es un hash y no hay que
+        // volver a guardarla como si fuera el texto original.
+        _passwordController.text = '';
       }
     });
   }
@@ -78,8 +80,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         id: id,
         nombre: _nombreController.text.trim(),
         email: _emailController.text.trim(),
-        password: _passwordController.text,
+        // Vacio = no cambiar la contrasena de la cuenta.
+        password: _passwordController.text.trim(),
       );
+    } on EmailEnUsoException {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ese correo ya está en uso')),
+      );
+      return;
     } catch (_) {
       if (!mounted) {
         return;
@@ -91,18 +103,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    // Se vuelve a leer la cuenta: asi el estado refleja lo que quedo en la
+    // base (incluido el hash de la contrasena si se cambio).
+    await _cargarUsuario();
     if (!mounted) {
       return;
     }
     setState(() {
       _guardando = false;
       _editando = false;
-      _usuario = Usuario.withId(
-        id,
-        _nombreController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Datos actualizados')),
@@ -110,8 +119,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Cierra el perfil y vuelve a la pantalla de bienvenida.
-  void _cerrarSesion() {
+  // Borra ademas la sesion guardada en disco para que la proxima apertura
+  // de la app pida iniciar sesion de nuevo.
+  Future<void> _cerrarSesion() async {
     final VoidCallback cerrar = widget.onCerrarSesion;
+    await DbHelper().cerrarSesion();
+    if (!mounted) {
+      return;
+    }
     Navigator.of(context).pop();
     cerrar();
   }
@@ -264,10 +279,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         _datoFila(Icons.person_outline, 'Nombre', _usuario!.nombre),
         _datoFila(Icons.mail_outline, 'Correo', _usuario!.email),
+        // Se muestra una cantidad fija de puntos: el largo del hash revelaria
+        // informacion y la contrasena real no se puede recuperar.
         _datoFila(
           Icons.lock_outline,
           'Contraseña',
-          _usuario!.password.isEmpty ? 'Sin contraseña' : '•' * _usuario!.password.length,
+          _usuario!.password.isEmpty ? 'Sin contraseña' : '•' * 8,
         ),
       ],
     );
@@ -333,12 +350,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             controller: _passwordController,
             obscureText: true,
             decoration: const InputDecoration(
-              labelText: 'Contraseña',
+              labelText: 'Nueva contraseña (opcional)',
+              helperText: 'Dejalo vacío para mantener la actual',
               border: OutlineInputBorder(),
             ),
-            validator: (value) => (value == null || value.isEmpty)
-                ? 'Ingresá una contrasena'
-                : null,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return null; // sin cambio de contrasena
+              }
+              if (value.trim().length < 6) {
+                return 'Usá al menos 6 caracteres';
+              }
+              return null;
+            },
           ),
         ],
       ),

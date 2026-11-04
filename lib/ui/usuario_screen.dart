@@ -26,11 +26,36 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final int userId = await UsuarioRepository().crearUsuario(
-      nombre: _nombreController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
+    int? userId;
+    try {
+      userId = await UsuarioRepository().crearUsuario(
+        nombre: _nombreController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+    } on EmailEnUsoException {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ya existe una cuenta con ese correo')),
+      );
+      return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo crear la cuenta')),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    // La sesion queda guardada en disco: al volver a abrir la app el usuario
+    // no tiene que loguearse de nuevo.
+    await UsuarioRepository().guardarSesion(userId);
     if (!mounted) {
       return;
     }

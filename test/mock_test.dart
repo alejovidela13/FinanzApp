@@ -55,6 +55,12 @@ void main() {
     await databaseFactory.setDatabasesPath(dir.path);
   });
 
+  // La sesion guardada en disco hace que la app arranque directo en el
+  // inicio: cada test tiene que partir de la pantalla de bienvenida.
+  setUp(() async {
+    await DbHelper().cerrarSesion();
+  });
+
   test(
     'Los repositorios responden con datos de prueba sin tocar SQLite',
     () async {
@@ -131,10 +137,17 @@ void main() {
       // ---------------------------------------------------------------
       expect(find.text('Aun no hay gastos registrados.'), findsNothing);
 
-      // Totales calculados por el repositorio: 1500 + 820 + 310 + 240.
-      expect(find.text('Total \$2870 • 4 registro(s)'), findsOneWidget);
-      // Ingresos de ejemplo: 350000 + 80000.
-      expect(find.text('\$430000'), findsOneWidget);
+      // Saldo total del mock: ingresos 430000 - gastos 2870 - ahorros 520000.
+      expect(find.text('-\$92870'), findsOneWidget);
+
+      // Seccion de ingresos del mes: 350000 + 80000 (queda bajo el pliegue).
+      await tester.scrollUntilVisible(
+        find.text('Total \$430000 • 2 registro(s)'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Total \$430000 • 2 registro(s)'), findsOneWidget);
 
       // Se baja hasta el ultimo gasto de ejemplo: los 4 tienen que estar.
       await tester.scrollUntilVisible(

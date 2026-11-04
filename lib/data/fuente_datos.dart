@@ -12,9 +12,10 @@ class FuenteDatos {
   ///  * `false` -> MODO REAL: los repositorios leen y escriben en SQLite
   ///               (capa DbHelper) del usuario con sesion activa.
   ///
-  /// Arranca en `true`: la aplicacion muestra datos simulados de ejemplo
-  /// hasta que se cambie a la persistencia real.
-  static bool usarMock = true;
+  /// Arranca en `false`: la aplicacion guarda y lee los datos financieros
+  /// en SQLite (persistencia real). Cambiar a `true` activa el modo demo
+  /// con datos de ejemplo en memoria.
+  static bool usarMock = false;
 
   /// Devuelve una fecha (YYYY-MM-DD) dentro del MES EN CURSO.
   /// Los datos de demostracion la usan para que los gastos e ingresos de

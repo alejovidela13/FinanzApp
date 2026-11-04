@@ -111,6 +111,31 @@ double totalAhorrado(List<MetaAhorro> metas) {
   return total;
 }
 
+/// Saldo total disponible del usuario (lo que tiene para gastar):
+/// ingresos - gastos - plata depositada en ahorros + plata retirada.
+///
+/// Los depositos suben `montoAhorrado` y los retiros lo bajan, por lo que
+/// restar el total ahorrado refleja ambos movimientos sin llevar un
+/// historial aparte. Los gastos negativos (devoluciones de grupos) suman
+/// plata, igual que los servicios pagados y los pagos de grupos restan.
+double saldoTotal(
+  List<Gasto> gastos,
+  List<Ingreso> ingresos,
+  List<MetaAhorro> metas,
+) {
+  return totalIngresos(ingresos) - totalGastos(gastos) - totalAhorrado(metas);
+}
+
+/// Suma firmada de las deudas individuales de un grupo.
+/// Positivo -> te deben en total; negativo -> debés en total; 0 -> saldado.
+double totalDeudasGrupo(List<MiembroGrupo> miembros) {
+  double total = 0;
+  for (final MiembroGrupo miembro in miembros) {
+    total += miembro.deuda;
+  }
+  return total;
+}
+
 /// Agrupa los gastos sumando el monto por categoria.
 /// Devuelve un mapa sin orden garantizado; el llamador decide como ordenarlo.
 Map<String, double> gastosPorCategoria(List<Gasto> gastos) {
@@ -151,8 +176,10 @@ double progresoMeta(MetaAhorro meta) {
 }
 
 /// Formatea un monto numerico a su representacion monetaria.
+/// Los negativos se escriben con el signo adelante: -$500 (no $-500).
 String formatearMoneda(double monto) {
-  return '\$${monto.toStringAsFixed(0)}';
+  final String valor = monto.abs().toStringAsFixed(0);
+  return monto < 0 ? '-\$$valor' : '\$$valor';
 }
 
 /// Formatea una fecha guardada como String en formato YYYY-MM-DD a una forma legible (DD/MM/AAAA).

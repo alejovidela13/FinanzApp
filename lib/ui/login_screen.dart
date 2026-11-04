@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/contrasena.dart';
 import '../data/dbhelper.dart';
 import '../model/model.dart';
 import '../data/usuario_repository.dart';
@@ -30,16 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final String password = _passwordController.text.trim();
 
     final Usuario? usuario = await UsuarioRepository().getUsuarioPorEmail(email);
-    if (usuario == null) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Credenciales invalidas')),
-      );
-      return;
-    }
-    if (usuario.password != password) {
+    // La contrasena se compara contra el hash guardado; las cuentas viejas
+    // (texto plano) tambien son aceptadas hasta su migracion.
+    if (usuario == null || !contrasenaCorrecta(usuario, password)) {
       if (!mounted) {
         return;
       }
@@ -49,7 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // Cuenta vieja con contrasena en claro: se reemplaza por su hash.
+    await UsuarioRepository().migrarContrasena(usuario, password);
+
     await DbHelper().setCurrentUser(usuario.id ?? 0);
+    // La sesion queda en disco: la app recuerda al usuario al reiniciar.
+    await UsuarioRepository().guardarSesion(usuario.id ?? 0);
     if (!mounted) {
       return;
     }

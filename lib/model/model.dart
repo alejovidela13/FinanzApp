@@ -13,10 +13,12 @@ class Gasto {
   String concepto; // Concepto del gasto (ej. "Alquiler")
   double monto; // Monto del gasto
   String categoria; // Categoria del gasto (ej. "Servicios")
-  String expiration; // Fecha de expiracion en formato String YYYY-MM-DD
-  int fqYear; // Alerta: 1 si se notificara un ano antes, 0 si no
-  int fqHalfYear; // Alerta: 1 si se notificaria seis meses antes, 0 si no
-  int fqMonth; // Alerta: 1 si se notificaria un mes antes, 0 si no
+  String expiration; // Fecha del gasto (cuando se pago) en formato YYYY-MM-DD
+  // Flags de alerta. Quedan por compatibilidad con las bases existentes: ya
+  // no generan notificaciones (los gastos no vencen).
+  int fqYear;
+  int fqHalfYear;
+  int fqMonth;
 
   // Constructor estandar: para gastos nuevos creados en la interfaz visual.
   Gasto(this.concepto, this.monto, this.categoria, this.expiration, this.fqYear,
@@ -162,6 +164,46 @@ class Grupo {
       );
 }
 
+/// Integrante de un grupo y su deuda INDIVIDUAL con el usuario.
+///
+/// `deuda` se guarda con signo desde la perspectiva del usuario:
+///   * > 0 -> el integrante me debe
+///   * < 0 -> le debo al integrante
+///   * 0   -> esta al dia
+///
+/// El saldo total del grupo (Grupo.saldo) es la suma de las deudas de sus
+/// integrantes: se recalcula cada vez que una deuda cambia.
+class MiembroGrupo {
+  int? id; // null hasta persistir
+  int grupoId; // Grupo al que pertenece
+  String nombre; // Nombre del integrante
+  double deuda; // Deuda individual (con signo, perspectiva del usuario)
+
+  // Constructor estandar: para integrantes nuevos creados en la interfaz.
+  MiembroGrupo(this.grupoId, this.nombre, this.deuda, [this.id]);
+
+  // Constructor nombrado: para integrantes recuperados desde la base.
+  MiembroGrupo.withId(this.id, this.grupoId, this.nombre, this.deuda);
+
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{};
+    if (id != null) {
+      map['id'] = id;
+    }
+    map['grupoId'] = grupoId;
+    map['nombre'] = nombre;
+    map['deuda'] = deuda;
+    return map;
+  }
+
+  factory MiembroGrupo.fromObject(dynamic o) => MiembroGrupo.withId(
+        o['id'],
+        (o['grupoId'] as num?)?.toInt() ?? 0,
+        o['nombre'] ?? '',
+        (o['deuda'] as num?)?.toDouble() ?? 0.0,
+      );
+}
+
 /// Servicio o gasto fijo del hogar (ej. "Luz (Edemsa)").
 class ServicioHogar {
   int? id; // null hasta persistir
@@ -169,13 +211,18 @@ class ServicioHogar {
   String detalle; // Detalle (ej. "Vence el 22/09 • Pendiente")
   double monto; // Monto del servicio
   int pagado; // 1 si esta pagado, 0 si esta pendiente
+  // Id del gasto que se creo al marcar el servicio como pagado (0 si no
+  // tiene): permite reflejar el pago en gastos y deshacerlo al desmarcar.
+  int gastoId;
 
   // Constructor estandar: para servicios nuevos creados en la interfaz visual.
-  ServicioHogar(this.titulo, this.detalle, this.monto, this.pagado, [this.id]);
+  ServicioHogar(this.titulo, this.detalle, this.monto, this.pagado,
+      [this.id, this.gastoId = 0]);
 
   // Constructor nombrado: para servicios recuperados desde la base de datos.
-  ServicioHogar.withId(
-      this.id, this.titulo, this.detalle, this.monto, this.pagado);
+  ServicioHogar.withId(this.id, this.titulo, this.detalle, this.monto,
+      this.pagado,
+      [this.gastoId = 0]);
 
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{};
@@ -186,6 +233,7 @@ class ServicioHogar {
     map['detalle'] = detalle;
     map['monto'] = monto;
     map['pagado'] = pagado;
+    map['gastoId'] = gastoId;
     return map;
   }
 
@@ -195,6 +243,7 @@ class ServicioHogar {
         o['detalle'] ?? '',
         (o['monto'] as num?)?.toDouble() ?? 0.0,
         (o['pagado'] as num?)?.toInt() ?? 0,
+        (o['gastoId'] as num?)?.toInt() ?? 0,
       );
 }
 

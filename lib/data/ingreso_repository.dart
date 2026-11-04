@@ -35,6 +35,18 @@ class IngresoRepository {
     await DbHelper().insertar(_tabla, ingreso.toMap());
   }
 
+  // UPDATE: modifica un ingreso localizandolo por su id.
+  Future<void> updateIngreso(Ingreso ingreso) async {
+    if (FuenteDatos.usarMock) {
+      final int i = _ingresosMock.indexWhere((Ingreso ing) => ing.id == ingreso.id);
+      if (i >= 0) {
+        _ingresosMock[i] = ingreso;
+      }
+      return;
+    }
+    await DbHelper().actualizar(_tabla, ingreso.toMap());
+  }
+
   // DELETE: elimina un ingreso por su id.
   Future<void> deleteIngreso(int id) async {
     if (FuenteDatos.usarMock) {

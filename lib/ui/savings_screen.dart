@@ -52,14 +52,39 @@ class _SavingsScreenState extends State<SavingsScreen> {
     }
   }
 
+  // Abre el mismo formulario en modo edicion sobre una meta existente.
+  Future<void> _editarMeta(MetaAhorro meta) async {
+    final bool? guardada = await showDialog<bool>(
+      context: context,
+      builder: (context) => _DialogoNuevaMeta(meta: meta),
+    );
+    if (guardada == true) {
+      _recargar();
+    }
+  }
+
   // Permite depositar ahorro sobre una meta existente.
   Future<void> _depositar(MetaAhorro meta) async {
     final double? monto = await showDialog<double>(
       context: context,
-      builder: (context) => _DialogoDeposito(meta: meta),
+      builder: (context) => _DialogoMovimiento(meta: meta, esRetiro: false),
     );
     if (monto != null && monto > 0) {
       meta.montoAhorrado += monto;
+      await MetaAhorroRepository().updateMeta(meta);
+      _recargar();
+    }
+  }
+
+  // Permite retirar ahorro de una meta existente (nunca baja de cero).
+  Future<void> _retirar(MetaAhorro meta) async {
+    final double? monto = await showDialog<double>(
+      context: context,
+      builder: (context) => _DialogoMovimiento(meta: meta, esRetiro: true),
+    );
+    if (monto != null && monto > 0) {
+      final double nuevo = meta.montoAhorrado - monto;
+      meta.montoAhorrado = nuevo < 0 ? 0 : nuevo;
       await MetaAhorroRepository().updateMeta(meta);
       _recargar();
     }
@@ -279,12 +304,18 @@ class _SavingsScreenState extends State<SavingsScreen> {
                 onSelected: (valor) {
                   if (valor == 'depositar') {
                     _depositar(meta);
+                  } else if (valor == 'retirar') {
+                    _retirar(meta);
+                  } else if (valor == 'editar') {
+                    _editarMeta(meta);
                   } else {
                     _eliminar(meta);
                   }
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(value: 'depositar', child: Text('Depositar')),
+                  PopupMenuItem(value: 'retirar', child: Text('Retirar')),
+                  PopupMenuItem(value: 'editar', child: Text('Editar')),
                   PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
                 ],
               ),
@@ -346,9 +377,12 @@ class _SavingsScreenState extends State<SavingsScreen> {
   }
 }
 
-// Formulario de alta de metas de ahorro.
+// Formulario de alta y edicion de metas de ahorro.
 class _DialogoNuevaMeta extends StatefulWidget {
-  const _DialogoNuevaMeta();
+  // Meta a editar. Null -> modo alta.
+  final MetaAhorro? meta;
+
+  const _DialogoNuevaMeta({this.meta});
 
   @override
   State<_DialogoNuevaMeta> createState() => _DialogoNuevaMetaState();
@@ -360,6 +394,8 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
   final _objetivoController = TextEditingController();
   final _fechaController = TextEditingController();
   String _categoria = 'Viajes';
+
+  bool get _esEdicion => widget.meta != null;
 
   static const List<String> _categorias = <String>[
     'Viajes',
@@ -373,6 +409,17 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
   @override
   void initState() {
     super.initState();
+    final MetaAhorro? meta = widget.meta;
+    if (meta != null) {
+      // Modo edicion: se cargan los datos actuales de la meta.
+      _tituloController.text = meta.titulo;
+      _objetivoController.text = meta.montoObjetivo.toStringAsFixed(2);
+      _fechaController.text = meta.fechaObjetivo;
+      _categoria = _categorias.contains(meta.categoria)
+          ? meta.categoria
+          : 'Otros';
+      return;
+    }
     // Por defecto: un anio desde hoy.
     final DateTime limite = DateTime.now().add(const Duration(days: 365));
     _fechaController.text =
@@ -388,15 +435,22 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
   }
 
   Future<void> _elegirFecha() async {
+    final DateTime inicial =
+        DateTime.tryParse(_fechaController.text) ?? DateTime.now();
+    // Si la meta ya tiene una fecha pasada, el picker tiene que poder
+    // abrirla: si no, Flutter lanza "initialDate is before firstDate".
+    final DateTime hoy = DateTime.now();
+    final DateTime primera = inicial.isBefore(hoy) ? inicial : hoy;
     final DateTime? fecha = await showDatePicker(
       context: context,
-      initialDate: DateTime.tryParse(_fechaController.text) ?? DateTime.now(),
-      firstDate: DateTime.now(),
+      initialDate: inicial,
+      firstDate: primera,
       lastDate: DateTime(2100, 12),
     );
     if (fecha != null) {
       _fechaController.text =
           '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
+      setState(() {});
     }
   }
 
@@ -406,14 +460,21 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
     }
     final double objetivo =
         double.tryParse(_objetivoController.text.replaceAll(',', '.')) ?? 0;
+    // En modo edicion se conservan el id y lo ya ahorrado: solo cambian
+    // titulo, categoria, objetivo y fecha.
     final MetaAhorro meta = MetaAhorro(
       _tituloController.text.trim(),
       _categoria,
       objetivo,
-      0,
+      widget.meta?.montoAhorrado ?? 0,
       _fechaController.text,
+      widget.meta?.id,
     );
-    await MetaAhorroRepository().addMeta(meta);
+    if (_esEdicion) {
+      await MetaAhorroRepository().updateMeta(meta);
+    } else {
+      await MetaAhorroRepository().addMeta(meta);
+    }
     if (mounted) {
       Navigator.of(context).pop(true);
     }
@@ -422,7 +483,7 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Nueva meta'),
+      title: Text(_esEdicion ? 'Editar meta' : 'Nueva meta'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -499,24 +560,28 @@ class _DialogoNuevaMetaState extends State<_DialogoNuevaMeta> {
         ),
         ElevatedButton(
           onPressed: _guardar,
-          child: const Text('Crear meta'),
+          child: Text(_esEdicion ? 'Guardar cambios' : 'Crear meta'),
         ),
       ],
     );
   }
 }
 
-// Dialogo para depositar ahorro sobre una meta.
-class _DialogoDeposito extends StatefulWidget {
+// Dialogo para depositar o retirar ahorro sobre una meta.
+//
+// `esRetiro == false` -> deposita; `esRetiro == true` -> retira (validando
+// que no se saque mas de lo ahorrado).
+class _DialogoMovimiento extends StatefulWidget {
   final MetaAhorro meta;
+  final bool esRetiro;
 
-  const _DialogoDeposito({required this.meta});
+  const _DialogoMovimiento({required this.meta, required this.esRetiro});
 
   @override
-  State<_DialogoDeposito> createState() => _DialogoDepositoState();
+  State<_DialogoMovimiento> createState() => _DialogoMovimientoState();
 }
 
-class _DialogoDepositoState extends State<_DialogoDeposito> {
+class _DialogoMovimientoState extends State<_DialogoMovimiento> {
   final _formKey = GlobalKey<FormState>();
   final _montoController = TextEditingController();
 
@@ -537,8 +602,13 @@ class _DialogoDepositoState extends State<_DialogoDeposito> {
 
   @override
   Widget build(BuildContext context) {
+    final String accion = widget.esRetiro ? 'Retirar' : 'Depositar';
     return AlertDialog(
-      title: Text('Depositar en "${widget.meta.titulo}"'),
+      title: Text(
+        widget.esRetiro
+            ? 'Retirar de "${widget.meta.titulo}"'
+            : 'Depositar en "${widget.meta.titulo}"',
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -551,15 +621,25 @@ class _DialogoDepositoState extends State<_DialogoDeposito> {
                 'de ${formatearMoneda(widget.meta.montoObjetivo)}',
                 style: const TextStyle(fontSize: 13, color: Colors.black54),
               ),
+              const SizedBox(height: 4),
+              // Deja claro que el movimiento se refleja en el saldo del inicio.
+              Text(
+                widget.esRetiro
+                    ? 'Al retirar, el dinero vuelve a tu saldo del inicio.'
+                    : 'Al depositar, el dinero sale de tu saldo del inicio.',
+                style: const TextStyle(fontSize: 12, color: Colors.black45),
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _montoController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Monto a depositar',
+                decoration: InputDecoration(
+                  labelText: widget.esRetiro
+                      ? 'Monto a retirar'
+                      : 'Monto a depositar',
                   prefixText: '\$',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -569,6 +649,10 @@ class _DialogoDepositoState extends State<_DialogoDeposito> {
                       double.tryParse(value.replaceAll(',', '.'));
                   if (monto == null || monto <= 0) {
                     return 'Ingresá un monto valido';
+                  }
+                  if (widget.esRetiro && monto > widget.meta.montoAhorrado) {
+                    return 'No podés retirar más de '
+                        '${formatearMoneda(widget.meta.montoAhorrado)}';
                   }
                   return null;
                 },
@@ -584,7 +668,7 @@ class _DialogoDepositoState extends State<_DialogoDeposito> {
         ),
         ElevatedButton(
           onPressed: _guardar,
-          child: const Text('Depositar'),
+          child: Text(accion),
         ),
       ],
     );

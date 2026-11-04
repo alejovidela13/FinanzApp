@@ -55,6 +55,62 @@ class DbHelper {
         'nombre TEXT, '
         'email TEXT, '
         'password TEXT);');
+    // Correo unico (sin distinguir mayusculas): dos cuentas no pueden
+    // compartir email. Si una base heredada ya tiene duplicados, el indice
+    // no se puede crear y se ignora a proposito para no bloquear el arranque.
+    try {
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email '
+        'ON usuarios(LOWER(email));',
+      );
+    } catch (_) {
+      // Cuentas duplicadas heredadas: la unicidad se controla ademas al
+      // registrar y al editar el perfil.
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // SESION: ultimo usuario autenticado, guardado en un archivo para que la
+  // aplicacion recuerde al usuario despues de reiniciar la dispositivo.
+  // ---------------------------------------------------------------------
+
+  Future<String> _rutaSesion() async => _rutaDe('finanzapp_sesion.txt');
+
+  // Guarda la sesion activa (se llama al iniciar sesion y al registrarse).
+  Future<void> guardarSesion(int userId) async {
+    try {
+      final File archivo = File(await _rutaSesion());
+      await archivo.writeAsString('$userId', flush: true);
+    } catch (_) {
+      // Sin permiso de escritura: la app sigue funcionando sin recordar.
+    }
+  }
+
+  // Lee la sesion guardada; null si no hay (o si el archivo esta corrupto).
+  Future<int?> leerSesion() async {
+    try {
+      final File archivo = File(await _rutaSesion());
+      if (!await archivo.exists()) {
+        return null;
+      }
+      return int.tryParse((await archivo.readAsString()).trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Borra la sesion guardada (logout). El id en memoria se conserva para
+  // que ninguna operacion caiga accidentalmente en la base del usuario 0:
+  // la app pide login antes de volver a mostrar datos.
+  Future<void> cerrarSesion() async {
+    try {
+      final File archivo = File(await _rutaSesion());
+      if (await archivo.exists()) {
+        await archivo.delete();
+      }
+    } catch (_) {
+      // Nada que borrar.
+    }
   }
 
   Future<String> _rutaDe(String nombreArchivo) async {
@@ -104,16 +160,31 @@ class DbHelper {
           continue;
         }
         try {
-          final Database origen = await openDatabase(archivo.path, readOnly: true);
-          final List<Map<String, dynamic>> filas = await origen.query('usuarios');
-          for (final Map<String, dynamic> fila in filas) {
-            await global.insert(
-              'usuarios',
-              fila,
-              conflictAlgorithm: ConflictAlgorithm.ignore,
-            );
+          // La apertura es SOLO para leer la tabla vieja "usuarios":
+          //  * singleInstance: false -> NO se cachea la conexion. Si se
+          //    cacheara, la base de esta cuenta quedaria en solo lectura
+          //    para toda la app y sus escrituras fallarian con
+          //    "Database readonly" (es la cuenta activa u otra).
+          //  * se cierra siempre, aunque la lectura falle (una base de la
+          //    version actual no tiene tabla "usuarios").
+          final Database origen = await openDatabase(
+            archivo.path,
+            readOnly: true,
+            singleInstance: false,
+          );
+          try {
+            final List<Map<String, dynamic>> filas =
+                await origen.query('usuarios');
+            for (final Map<String, dynamic> fila in filas) {
+              await global.insert(
+                'usuarios',
+                fila,
+                conflictAlgorithm: ConflictAlgorithm.ignore,
+              );
+            }
+          } finally {
+            await origen.close();
           }
-          await origen.close();
         } catch (_) {
           // Base sin tabla de usuarios u otro problema: se ignora a proposito.
         }
@@ -165,12 +236,27 @@ class DbHelper {
         'integrantes INTEGER, '
         'saldo INTEGER, '
         'icono TEXT);');
+    await db.execute('CREATE TABLE IF NOT EXISTS grupo_miembros ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+        'grupoId INTEGER, '
+        'nombre TEXT, '
+        'deuda REAL);');
     await db.execute('CREATE TABLE IF NOT EXISTS servicios_hogar ('
         'id INTEGER PRIMARY KEY AUTOINCREMENT, '
         'titulo TEXT, '
         'detalle TEXT, '
         'monto REAL, '
-        'pagado INTEGER);');
+        'pagado INTEGER, '
+        'gastoId INTEGER DEFAULT 0);');
+    // Columna nueva en bases creadas por versiones anteriores: el CREATE
+    // anterior no la agrega porque la tabla ya existe. Si la columna ya
+    // esta (base recien creada), el ALTER falla y se ignora a proposito.
+    try {
+      await db.execute(
+          'ALTER TABLE servicios_hogar ADD COLUMN gastoId INTEGER DEFAULT 0');
+    } catch (_) {
+      // Nada que migrar.
+    }
   }
 
   // Obtiene (y cachea) la conexion a la base de datos del usuario actual.
@@ -206,10 +292,16 @@ class DbHelper {
     return await db.insert(tabla, fila);
   }
 
-  // READ: devuelve todas las filas de la tabla, ordenadas opcionalmente.
-  Future<List<Map<String, dynamic>>> listar(String tabla, {String? orden}) async {
+  // READ: devuelve todas las filas de la tabla, con filtro opcional por
+  // columna (ej. listar('grupo_miembros', where: 'grupoId = ?', args: [id])).
+  Future<List<Map<String, dynamic>>> listar(
+    String tabla, {
+    String? orden,
+    String? where,
+    List<Object?>? args,
+  }) async {
     final Database db = await this.db;
-    return await db.query(tabla, orderBy: orden);
+    return await db.query(tabla, orderBy: orden, where: where, whereArgs: args);
   }
 
   // UPDATE: modifica la fila localizada por su ID.
@@ -273,10 +365,20 @@ class DbHelper {
   }
 
   // READ: obtiene un usuario por su email (funciona desde cualquier sesion).
+  // Primero se busca coincidencia exacta y, si no hay, sin distinguir
+  // mayusculas/minusculas, para que el login no dependa de como se tipeo.
   Future<Usuario?> getUsuarioPorEmail(String email) async {
     final Database base = await dbUsuarios;
-    final List<Map<String, dynamic>> filas =
-        await base.query('usuarios', where: 'email = ?', whereArgs: [email]);
+    final String limpio = email.trim();
+    List<Map<String, dynamic>> filas =
+        await base.query('usuarios', where: 'email = ?', whereArgs: [limpio]);
+    if (filas.isEmpty) {
+      filas = await base.query(
+        'usuarios',
+        where: 'LOWER(email) = ?',
+        whereArgs: [limpio.toLowerCase()],
+      );
+    }
     if (filas.isEmpty) {
       return null;
     }

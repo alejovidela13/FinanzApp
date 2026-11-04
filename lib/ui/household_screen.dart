@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../model/model.dart';
+import '../data/gasto_repository.dart';
 import '../data/servicio_hogar_repository.dart';
 import '../util/utils.dart';
 
@@ -52,9 +53,40 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     }
   }
 
+  // Abre el mismo formulario en modo edicion sobre un servicio existente.
+  Future<void> _editarServicio(ServicioHogar servicio) async {
+    final bool? guardado = await showDialog<bool>(
+      context: context,
+      builder: (context) => _DialogoNuevoServicio(servicio: servicio),
+    );
+    if (guardado == true) {
+      _recargar();
+    }
+  }
+
   // Marca o desmarca un servicio como pagado (se persiste en SQLite).
+  //
+  // Al marcarlo se registra el pago como gasto de hoy, para que se refleje
+  // en el inicio y en el mes. Al desmarcarlo, ese gasto se elimina.
   Future<void> _alternarPagado(ServicioHogar servicio) async {
-    servicio.pagado = servicio.pagado == 1 ? 0 : 1;
+    if (servicio.pagado == 1) {
+      servicio.pagado = 0;
+      if (servicio.gastoId > 0) {
+        await GastoRepository().deleteGasto(servicio.gastoId);
+        servicio.gastoId = 0;
+      }
+    } else {
+      servicio.pagado = 1;
+      servicio.gastoId = await GastoRepository().addGasto(Gasto(
+        servicio.titulo,
+        servicio.monto,
+        'Servicios',
+        fechaHoy(),
+        0,
+        0,
+        0,
+      ));
+    }
     await ServicioHogarRepository().updateServicio(servicio);
     _recargar();
   }
@@ -79,6 +111,10 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       ),
     );
     if (confirmado == true) {
+      // Si estaba pagado, su gasto acompañante se elimina tambien.
+      if (servicio.gastoId > 0) {
+        await GastoRepository().deleteGasto(servicio.gastoId);
+      }
       await ServicioHogarRepository().deleteServicio(servicio.id!);
       _recargar();
     }
@@ -251,7 +287,11 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           ),
         ],
       ),
-      child: Row(
+      // Tocar el item abre su edicion; el menu ofrece editar o eliminar.
+      child: InkWell(
+        onTap: () => _editarServicio(servicio),
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
         children: [
           IconButton(
             padding: EdgeInsets.zero,
@@ -289,23 +329,30 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           PopupMenuButton<String>(
             tooltip: 'Acciones del servicio',
             onSelected: (valor) {
-              if (valor == 'eliminar') {
+              if (valor == 'editar') {
+                _editarServicio(servicio);
+              } else if (valor == 'eliminar') {
                 _eliminar(servicio);
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'editar', child: Text('Editar')),
               PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
             ],
           ),
         ],
+        ),
       ),
     );
   }
 }
 
-// Formulario de alta de servicios y gastos fijos del hogar.
+// Formulario de alta y edicion de servicios y gastos fijos del hogar.
 class _DialogoNuevoServicio extends StatefulWidget {
-  const _DialogoNuevoServicio();
+  // Servicio a editar. Null -> modo alta.
+  final ServicioHogar? servicio;
+
+  const _DialogoNuevoServicio({this.servicio});
 
   @override
   State<_DialogoNuevoServicio> createState() => _DialogoNuevoServicioState();
@@ -316,6 +363,19 @@ class _DialogoNuevoServicioState extends State<_DialogoNuevoServicio> {
   final _tituloController = TextEditingController();
   final _detalleController = TextEditingController();
   final _montoController = TextEditingController();
+
+  bool get _esEdicion => widget.servicio != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final ServicioHogar? servicio = widget.servicio;
+    if (servicio != null) {
+      _tituloController.text = servicio.titulo;
+      _detalleController.text = servicio.detalle;
+      _montoController.text = servicio.monto.toStringAsFixed(2);
+    }
+  }
 
   @override
   void dispose() {
@@ -331,13 +391,31 @@ class _DialogoNuevoServicioState extends State<_DialogoNuevoServicio> {
     }
     final double monto =
         double.tryParse(_montoController.text.replaceAll(',', '.')) ?? 0;
+    // En modo edicion se conservan el id, el estado pagado/pendiente y el
+    // gasto asociado: solo se modifican titulo, detalle y monto.
     final ServicioHogar servicio = ServicioHogar(
       _tituloController.text.trim(),
       _detalleController.text.trim(),
       monto,
-      0,
+      widget.servicio?.pagado ?? 0,
+      widget.servicio?.id,
+      widget.servicio?.gastoId ?? 0,
     );
-    await ServicioHogarRepository().addServicio(servicio);
+    if (_esEdicion) {
+      await ServicioHogarRepository().updateServicio(servicio);
+      // Si el servicio ya estaba pagado, el gasto que representa ese pago
+      // se actualiza para que no quede desincronizado.
+      if (servicio.pagado == 1 && servicio.gastoId > 0) {
+        final Gasto? gasto = await GastoRepository().getGasto(servicio.gastoId);
+        if (gasto != null) {
+          gasto.concepto = servicio.titulo;
+          gasto.monto = servicio.monto;
+          await GastoRepository().updateGasto(gasto);
+        }
+      }
+    } else {
+      await ServicioHogarRepository().addServicio(servicio);
+    }
     if (mounted) {
       Navigator.of(context).pop(true);
     }
@@ -346,7 +424,7 @@ class _DialogoNuevoServicioState extends State<_DialogoNuevoServicio> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Nuevo servicio'),
+      title: Text(_esEdicion ? 'Editar servicio' : 'Nuevo servicio'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -404,7 +482,7 @@ class _DialogoNuevoServicioState extends State<_DialogoNuevoServicio> {
         ),
         ElevatedButton(
           onPressed: _guardar,
-          child: const Text('Guardar'),
+          child: Text(_esEdicion ? 'Guardar cambios' : 'Guardar'),
         ),
       ],
     );

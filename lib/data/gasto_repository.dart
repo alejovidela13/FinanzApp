@@ -32,15 +32,30 @@ class GastoRepository {
     return result.map(Gasto.fromObject).toList();
   }
 
-  // CREATE: agrega un gasto.
-  Future<void> addGasto(Gasto gasto) async {
+  // CREATE: agrega un gasto y devuelve su id en la base.
+  Future<int> addGasto(Gasto gasto) async {
     if (FuenteDatos.usarMock) {
       gasto.id = FuenteDatos.proximoId(_gastosMock.map((Gasto g) => g.id));
       _gastosMock.add(gasto);
-      return;
+      return gasto.id!;
     }
     final Database db = await DbHelper().db;
-    await db.insert('gastos', gasto.toMap());
+    return await db.insert('gastos', gasto.toMap());
+  }
+
+  // READ: consulta un gasto por su id (null si no existe).
+  Future<Gasto?> getGasto(int id) async {
+    if (FuenteDatos.usarMock) {
+      final int i = _gastosMock.indexWhere((Gasto g) => g.id == id);
+      return i >= 0 ? _gastosMock[i] : null;
+    }
+    final Database db = await DbHelper().db;
+    final List<Map<String, dynamic>> filas =
+        await db.query('gastos', where: 'id = ?', whereArgs: [id]);
+    if (filas.isEmpty) {
+      return null;
+    }
+    return Gasto.fromObject(filas.first);
   }
 
   // UPDATE: modifica un gasto localizandolo por su id.
