@@ -176,9 +176,13 @@ class _MonthScreenState extends State<MonthScreen> {
             tooltip: 'Mes anterior',
             onPressed: () => _changeMonth(-1),
           ),
-          Text(
-            etiquetaMes(_currentMonth),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          Expanded(
+            child: Text(
+              etiquetaMes(_currentMonth),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.arrow_forward_ios, size: 16),

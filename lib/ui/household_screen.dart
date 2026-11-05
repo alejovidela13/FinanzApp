@@ -177,9 +177,12 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Servicios y Gastos Fijos',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Expanded(
+                child: Text(
+                  'Servicios y Gastos Fijos',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
               TextButton.icon(
                 onPressed: _nuevoServicio,
@@ -242,12 +245,17 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           ),
           const Divider(height: 24),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMiniIndicator('Pagado', formatearMoneda(pagado), Colors.green),
-              _buildMiniIndicator(
-                  'Pendiente', formatearMoneda(pendiente), Colors.orange),
-              _buildMiniIndicator('Servicios', '$cantidad', Colors.blue),
+              Expanded(
+                child: _buildMiniIndicator('Pagado', formatearMoneda(pagado), Colors.green),
+              ),
+              Expanded(
+                child: _buildMiniIndicator(
+                    'Pendiente', formatearMoneda(pendiente), Colors.orange),
+              ),
+              Expanded(
+                child: _buildMiniIndicator('Servicios', '$cantidad', Colors.blue),
+              ),
             ],
           ),
         ],

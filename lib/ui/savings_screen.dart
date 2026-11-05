@@ -165,9 +165,12 @@ class _SavingsScreenState extends State<SavingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Tus Metas Activas',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Expanded(
+                child: Text(
+                  'Tus Metas Activas',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
               TextButton.icon(
                 onPressed: _nuevaMeta,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/usuario_repository.dart';
+import 'auth_widgets.dart';
 
 class UsuarioScreen extends StatefulWidget {
   const UsuarioScreen({super.key});
@@ -13,6 +14,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _ocultarPassword = true;
 
   @override
   void dispose() {
@@ -68,49 +70,90 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Nueva cuenta',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const CabeceraAuth(
+              icono: Icons.person_add_alt_1_rounded,
+              titulo: 'Nueva cuenta',
+              subtitulo: 'Creá tu cuenta para empezar a registrar tus finanzas',
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: TarjetaAuth(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: _nombreController,
+                        decoration: decoracionAuth(
+                          etiqueta: 'Nombre',
+                          icono: Icons.person_outline,
+                        ),
+                        validator: (value) => (value == null || value.trim().isEmpty)
+                            ? 'Ingresá un nombre'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: decoracionAuth(
+                          etiqueta: 'Correo',
+                          icono: Icons.mail_outline,
+                        ),
+                        validator: (value) => (value == null || !value.contains('@'))
+                            ? 'Ingresá un correo válido'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _ocultarPassword,
+                        decoration: decoracionAuth(
+                          etiqueta: 'Contraseña',
+                          icono: Icons.lock_outline,
+                          sufijo: IconButton(
+                            icon: Icon(_ocultarPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined),
+                            onPressed: () => setState(
+                                () => _ocultarPassword = !_ocultarPassword),
+                          ),
+                        ),
+                        validator: (value) => (value == null || value.trim().isEmpty)
+                            ? 'Ingresá una contraseña'
+                            : null,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          backgroundColor: const Color(0xFF4C68FF),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: _crearCuenta,
+                        child: const Text(
+                          'Crear cuenta',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nombreController,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-                validator: (value) => (value == null || value.trim().isEmpty) ? 'Ingresá un nombre' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Correo'),
-                validator: (value) => (value == null || !value.contains('@')) ? 'Ingresá un correo valido' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Contrasena'),
-                validator: (value) => (value == null || value.trim().isEmpty) ? 'Ingresá una contrasena' : null,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _crearCuenta,
-                child: const Text('Crear cuenta'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

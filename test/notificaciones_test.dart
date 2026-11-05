@@ -139,6 +139,7 @@ void main() {
     }
     dir.createSync(recursive: true);
     await databaseFactory.setDatabasesPath(dir.path);
+    await DbHelper().marcarIntroduccionVista();
   });
 
   // La sesion guardada hace que la app arranque directo en el inicio.

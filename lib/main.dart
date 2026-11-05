@@ -8,6 +8,7 @@ import 'model/model.dart';
 import 'data/usuario_repository.dart';
 import 'ui/login_screen.dart';
 import 'ui/main_nav_screen.dart';
+import 'ui/onboarding_screen.dart';
 import 'ui/usuario_screen.dart';
 import 'ui/welcome_screen.dart';
 
@@ -49,15 +50,37 @@ class FinanzApp extends StatefulWidget {
 
 class _FinanzAppState extends State<FinanzApp> {
   bool _autenticado = false;
+  bool _cargando = true;
+  bool _mostrarIntroduccion = false;
 
   @override
   void initState() {
     super.initState();
-    // Si quedo una sesion guardada (login o registro anteriores) y la cuenta
-    // sigue existiendo, la app entra directo al inicio sin pedir login.
-    _restaurarSesion();
+    _iniciar();
   }
 
+  // Decide la primera pantalla: si hay sesion guardada entra directo; si no,
+  // muestra la introduccion (solo la primera vez) y luego la bienvenida.
+  Future<void> _iniciar() async {
+    final bool vista = await DbHelper().introduccionVista();
+    await _restaurarSesion();
+    if (mounted) {
+      setState(() {
+        _cargando = false;
+        _mostrarIntroduccion = !vista;
+      });
+    }
+  }
+
+  Future<void> _terminarIntroduccion() async {
+    await DbHelper().marcarIntroduccionVista();
+    if (mounted) {
+      setState(() => _mostrarIntroduccion = false);
+    }
+  }
+
+  // Si quedo una sesion guardada (login o registro anteriores) y la cuenta
+  // sigue existiendo, la app entra directo al inicio sin pedir login.
   Future<void> _restaurarSesion() async {
     final int? userId = await DbHelper().leerSesion();
     if (userId == null) {
@@ -112,12 +135,25 @@ class _FinanzAppState extends State<FinanzApp> {
       title: 'FinanzApp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(fontFamily: 'Roboto', useMaterial3: true),
-      home: !_autenticado
-          ? WelcomeScreen(
-              onIniciarSesion: _abrirLogin,
-              onCrearCuenta: _abrirRegistro,
-            )
-          : MainNavScreen(onCerrarSesion: _cerrarSesion),
+      home: _pantallaInicial(),
+    );
+  }
+
+  Widget _pantallaInicial() {
+    // Mientras se decide la pantalla inicial (unos milisegundos) se muestra
+    // un fondo vacio: sin animaciones infinitas, para que los tests asienten.
+    if (_cargando) {
+      return const Scaffold(backgroundColor: Color(0xFFF6F8FC));
+    }
+    if (_autenticado) {
+      return MainNavScreen(onCerrarSesion: _cerrarSesion);
+    }
+    if (_mostrarIntroduccion) {
+      return OnboardingScreen(onTerminar: _terminarIntroduccion);
+    }
+    return WelcomeScreen(
+      onIniciarSesion: _abrirLogin,
+      onCrearCuenta: _abrirRegistro,
     );
   }
 }

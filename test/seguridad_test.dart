@@ -83,6 +83,7 @@ void main() {
     }
     dir.createSync(recursive: true);
     await databaseFactory.setDatabasesPath(dir.path);
+    await DbHelper().marcarIntroduccionVista();
   });
 
   // La sesion guardada hace que la app arranque directo en el inicio:
@@ -103,7 +104,10 @@ void main() {
       // ---------------------------------------------------------------
       // 1. ALTA DE UNA SEGUNDA CUENTA CON EL MISMO CORREO
       // ---------------------------------------------------------------
-      await tester.tap(find.byIcon(Icons.person_add_outlined));
+      await tester.tap(find.byTooltip('Mi perfil'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Crear otra cuenta'));
+      await tester.tap(find.text('Crear otra cuenta'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
       expect(find.text('Nueva cuenta'), findsOneWidget);
@@ -242,7 +246,7 @@ void main() {
       // ---------------------------------------------------------------
       // 2. CERRAR SESION -> VUELVE A LA BIENENDIDA Y BORRA LA SESION
       // ---------------------------------------------------------------
-      await tester.tap(find.text('😊'));
+      await tester.tap(find.byTooltip('Mi perfil'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -273,7 +277,10 @@ void main() {
       await crearCuenta(tester, nombre: 'Ana Torres', email: 'ana@test.com');
 
       // Se crea una segunda cuenta desde la barra superior.
-      await tester.tap(find.byIcon(Icons.person_add_outlined));
+      await tester.tap(find.byTooltip('Mi perfil'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Crear otra cuenta'));
+      await tester.tap(find.text('Crear otra cuenta'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -286,7 +293,7 @@ void main() {
       await esperarBD(tester);
 
       // Bruno edita su perfil y pone el correo de Ana.
-      await tester.tap(find.text('😊'));
+      await tester.tap(find.byTooltip('Mi perfil'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
 

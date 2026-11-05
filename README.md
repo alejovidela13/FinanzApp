@@ -109,6 +109,16 @@ menú— se abre la ficha con cada integrante:
   individuales (`totalDeudasGrupo` en `lib/util/utils.dart`); se
   recalcula y persiste en SQLite con cada cambio.
 
+## Primera vez y navegación
+
+- **Introducción**: al abrir la app por primera vez se muestran tres
+  pantallas de bienvenida (se pueden omitir). No vuelven a aparecer.
+- **Barra inferior**: Inicio, Mes, Grupo y Ahorro, con el botón **+** en el
+  centro para cargar gastos.
+- **Hogar** (servicios del hogar): se abre desde el botón "Hogar" de Inicio.
+- **Perfil** (avatar de la cabecera): datos de la cuenta, crear otra cuenta,
+  iniciar sesión con otra cuenta y cerrar sesión.
+
 ## Tests
 
 ```bash
@@ -116,7 +126,7 @@ flutter analyze
 flutter test
 ```
 
-Al cierre de este registro: `flutter analyze` sin issues y **34 tests en
+Al cierre de este registro: `flutter analyze` sin issues y **36 tests en
 verde**.
 
 ## Historial de cambios
@@ -126,7 +136,7 @@ solución) están registrados en [CHANGELOG.md](CHANGELOG.md).
 
 ## Plataformas
 
-- **Linux**: probada (análisis y 34 tests pasan).
+- **Linux**: probada (análisis y 36 tests pasan).
 - **Windows**: sin probar en esta rama.
 - **Android**: no probada todavía.
 - **Web**: no es compatible. El código usa `dart:io`, que no existe en el navegador.

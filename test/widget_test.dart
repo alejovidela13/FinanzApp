@@ -27,6 +27,15 @@ final String _dirTest =
 // Las operaciones de SQLite hacen E/S real (abrir archivos, escribir), por lo
 // que NO alcanza con pumpAndSettle: hay que dar vueltas al event loop real del
 // sistema y recien despues redibujar la UI.
+// Espera (en tiempo real) a que aparezca un widget: el arranque abre y
+// migra la base, y puede tardar mas que una espera fija.
+Future<void> esperarHasta(WidgetTester tester, Finder buscado) async {
+  for (int i = 0; i < 50 && buscado.evaluate().isEmpty; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+  }
+}
+
 Future<void> esperarBD(WidgetTester tester) async {
   for (int i = 0; i < 6; i++) {
     await tester.runAsync(
@@ -56,6 +65,7 @@ void main() {
     }
     dir.createSync(recursive: true);
     await databaseFactory.setDatabasesPath(dir.path);
+    await DbHelper().marcarIntroduccionVista();
   });
 
   // La sesion guardada en disco hace que la app arranque directo en el
@@ -67,6 +77,7 @@ void main() {
   testWidgets('FinanzApp muestra la pantalla de bienvenida', (WidgetTester tester) async {
     await tester.pumpWidget(const FinanzApp());
     await tester.pumpAndSettle();
+    await esperarHasta(tester, find.widgetWithText(OutlinedButton, 'Crear cuenta'));
 
     expect(find.text('FinanzApp'), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
@@ -137,7 +148,10 @@ void main() {
       // ---------------------------------------------------------------
       // 4. SE CREA LA CUENTA "BRUNO" -> SU BASE ESTA VACIA (AISLAMIENTO)
       // ---------------------------------------------------------------
-      await tester.tap(find.byIcon(Icons.person_add_outlined));
+      await tester.tap(find.byTooltip('Mi perfil'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Crear otra cuenta'));
+      await tester.tap(find.text('Crear otra cuenta'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
       expect(find.text('Nueva cuenta'), findsOneWidget);
@@ -157,10 +171,13 @@ void main() {
       // ---------------------------------------------------------------
       // 5. LOGIN CON CREDENCIALES INVALIDAS -> MENSAJE DE ERROR
       // ---------------------------------------------------------------
-      await tester.tap(find.byIcon(Icons.login_outlined));
+      await tester.tap(find.byTooltip('Mi perfil'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Iniciar sesión con otra cuenta'));
+      await tester.tap(find.text('Iniciar sesión con otra cuenta'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
-      expect(find.text('Iniciar sesion'), findsOneWidget);
+      expect(find.text('Iniciar sesión'), findsOneWidget);
 
       await tester.enterText(find.byType(TextFormField).at(0), 'ana@test.com');
       await tester.enterText(find.byType(TextFormField).at(1), 'clave-mala');
@@ -168,7 +185,7 @@ void main() {
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
-      expect(find.text('Credenciales invalidas'), findsOneWidget);
+      expect(find.text('Credenciales inválidas'), findsOneWidget);
 
       // ---------------------------------------------------------------
       // 6. LOGIN CORRECTO COMO ANA -> RECUPERA SUS GASTOS

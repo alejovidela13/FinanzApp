@@ -53,6 +53,7 @@ void main() {
     }
     dir.createSync(recursive: true);
     await databaseFactory.setDatabasesPath(dir.path);
+    await DbHelper().marcarIntroduccionVista();
   });
 
   // La sesion guardada en disco hace que la app arranque directo en el

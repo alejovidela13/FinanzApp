@@ -71,6 +71,23 @@ Future<void> crearCuenta(
   await esperarBD(tester);
 }
 
+// Los servicios del hogar ya no estan en la barra: se abren desde Inicio
+// como pantalla propia.
+Future<void> abrirHogar(WidgetTester tester) async {
+  await tester.tap(find.text('Inicio'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'Hogar'));
+  await tester.tap(find.widgetWithText(OutlinedButton, 'Hogar'));
+  await tester.pumpAndSettle();
+  await esperarBD(tester);
+}
+
+Future<void> volverDeHogar(WidgetTester tester) async {
+  tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+  await tester.pumpAndSettle();
+  await esperarBD(tester);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -90,6 +107,7 @@ void main() {
     }
     dir.createSync(recursive: true);
     await databaseFactory.setDatabasesPath(dir.path);
+    await DbHelper().marcarIntroduccionVista();
   });
 
   // La sesion guardada en disco hace que la app arranque directo en el
@@ -124,7 +142,7 @@ void main() {
       // ---------------------------------------------------------------
       // HOGAR: sin servicios cargados.
       // ---------------------------------------------------------------
-      await tester.tap(find.text('Hogar'));
+      await abrirHogar(tester);
       await tester.pumpAndSettle();
       await esperarBD(tester);
       expect(
@@ -137,6 +155,7 @@ void main() {
       // ---------------------------------------------------------------
       // GRUPO: sin grupos creados.
       // ---------------------------------------------------------------
+      await volverDeHogar(tester);
       await tester.tap(find.text('Grupo'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
@@ -169,7 +188,7 @@ void main() {
       // ---------------------------------------------------------------
       // 1. EL BOTON DE PERFIL ABRE LA PANTALLA CON LOS DATOS DE LA CUENTA
       // ---------------------------------------------------------------
-      await tester.tap(find.text('😊'));
+      await tester.tap(find.byTooltip('Mi perfil'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -328,7 +347,7 @@ void main() {
       // ---------------------------------------------------------------
       // 1. ALTA DE UN SERVICIO DEL HOGAR
       // ---------------------------------------------------------------
-      await tester.tap(find.text('Hogar'));
+      await abrirHogar(tester);
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -388,6 +407,7 @@ void main() {
       // ---------------------------------------------------------------
       // 4. ALTA DE UN GRUPO CON SUS INTEGRANTES
       // ---------------------------------------------------------------
+      await volverDeHogar(tester);
       await tester.tap(find.text('Grupo'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
@@ -596,7 +616,7 @@ void main() {
       // ---------------------------------------------------------------
       // 1. ALTA DE UN SERVICIO Y MARCA COMO PAGADO
       // ---------------------------------------------------------------
-      await tester.tap(find.text('Hogar'));
+      await abrirHogar(tester);
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -650,6 +670,8 @@ void main() {
 
       // El item sigue mostrando que esta pagado.
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
+
+      await volverDeHogar(tester);
     },
   );
 
@@ -884,7 +906,7 @@ void main() {
       // ---------------------------------------------------------------
       // 1. ALTA DE UN SERVICIO Y MARCA COMO PAGADO
       // ---------------------------------------------------------------
-      await tester.tap(find.text('Hogar'));
+      await abrirHogar(tester);
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -913,6 +935,7 @@ void main() {
       // ---------------------------------------------------------------
       // 2. EL PAGO SE REFLEJA EN EL INICIO (saldo y lista de gastos)
       // ---------------------------------------------------------------
+      await volverDeHogar(tester);
       await tester.tap(find.text('Inicio'));
       await tester.pumpAndSettle();
       await esperarBD(tester);
@@ -930,7 +953,7 @@ void main() {
       // ---------------------------------------------------------------
       // 3. DESMARCAR COMO PAGADO ELIMINA EL GASTO
       // ---------------------------------------------------------------
-      await tester.tap(find.text('Hogar'));
+      await abrirHogar(tester);
       await tester.pumpAndSettle();
       await esperarBD(tester);
 
@@ -943,6 +966,7 @@ void main() {
           <Gasto>[];
       expect(gastos, isEmpty, reason: 'Desmarcar dejo un gasto huerfano');
 
+      await volverDeHogar(tester);
       await tester.tap(find.text('Inicio'));
       await tester.pumpAndSettle();
       await esperarBD(tester);

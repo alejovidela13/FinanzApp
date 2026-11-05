@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/dbhelper.dart';
 import '../model/model.dart';
 import '../data/usuario_repository.dart';
+import 'login_screen.dart';
+import 'usuario_screen.dart';
 
 /// Pantalla de perfil de la cuenta activa.
 /// Permite ver los datos, editarlos (se guardan en SQLite) y cerrar sesion
@@ -116,6 +118,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Datos actualizados')),
     );
+  }
+
+  // Crea una cuenta nueva desde el perfil. Si se crea, se cierra el perfil
+  // para que la pantalla principal recargue los datos de la cuenta activa.
+  Future<void> _crearOtraCuenta() async {
+    final int? userId = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (context) => const UsuarioScreen()),
+    );
+    if (userId != null && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  // Inicia sesion con otra cuenta desde el perfil (mismo criterio que arriba).
+  Future<void> _iniciarOtraSesion() async {
+    final int? userId = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+    if (userId != null && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   // Cierra el perfil y vuelve a la pantalla de bienvenida.
@@ -251,6 +274,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: const Text('Editar datos'),
             ),
 
+          const SizedBox(height: 24),
+
+          // Cuentas: crear una nueva o entrar con otra.
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Cuentas',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _crearOtraCuenta,
+            icon: const Icon(Icons.person_add_outlined),
+            label: const Text('Crear otra cuenta'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _iniciarOtraSesion,
+            icon: const Icon(Icons.login_outlined),
+            label: const Text('Iniciar sesión con otra cuenta'),
+          ),
           const SizedBox(height: 24),
 
           // Cerrar sesion: vuelve al flujo Bienvenida -> Login/Registro.

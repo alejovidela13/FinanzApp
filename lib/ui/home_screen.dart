@@ -18,7 +18,10 @@ class _DatosInicio {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  // Abre la pantalla de servicios del hogar (la maneja la pantalla principal).
+  final Future<void> Function() onAbrirHogar;
+
+  const HomeScreen({super.key, required this.onAbrirHogar});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -61,6 +64,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Abre un dialogo para cargar un ingreso nuevo.
+  // Abre los servicios del hogar y, al volver, recarga el inicio porque pagar
+  // un servicio crea o elimina un gasto.
+  Future<void> _abrirHogar() async {
+    await widget.onAbrirHogar();
+    if (mounted) {
+      _recargar();
+    }
+  }
+
   Future<void> _agregarIngreso() async {
     final bool? guardado = await showDialog<bool>(
       context: context,
@@ -249,9 +261,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     'Gastos del mes',
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                  Text(
-                    etiquetaMes(hoy),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  Flexible(
+                    child: Text(
+                      etiquetaMes(hoy),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -260,12 +275,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    formatearMoneda(totalMes),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
+                  // Monto grande: se achica si la pantalla es angosta.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        formatearMoneda(totalMes),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                   Column(
@@ -301,11 +323,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 16),
 
-        // Alta de ingresos: permite cargar lo que el usuario quiera.
-        OutlinedButton.icon(
-          onPressed: _agregarIngreso,
-          icon: const Icon(Icons.add_circle_outline),
-          label: const Text('Agregar ingreso'),
+        // Alta de ingresos y acceso a Hogar (antes era una pestana de la barra).
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _agregarIngreso,
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Agregar ingreso'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _abrirHogar,
+                icon: const Icon(Icons.cottage_outlined),
+                label: const Text('Hogar'),
+              ),
+            ),
+          ],
         ),
 
         // Lista de ingresos del mes: cada item permite editar o eliminar.

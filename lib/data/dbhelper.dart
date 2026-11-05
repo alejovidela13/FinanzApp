@@ -74,6 +74,30 @@ class DbHelper {
   // aplicacion recuerde al usuario despues de reiniciar la dispositivo.
   // ---------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------
+  // INTRODUCCION: marca que la persona ya vio las pantallas de bienvenida.
+  // Se guarda en disco igual que la sesion, para no repetirlas al reiniciar.
+  // ---------------------------------------------------------------------
+
+  Future<String> _rutaIntroduccion() async =>
+      _rutaDe('finanzapp_introduccion.txt');
+
+  Future<bool> introduccionVista() async {
+    try {
+      return await File(await _rutaIntroduccion()).exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> marcarIntroduccionVista() async {
+    try {
+      await File(await _rutaIntroduccion()).writeAsString('1', flush: true);
+    } catch (_) {
+      // Sin permiso de escritura: la introduccion puede repetirse.
+    }
+  }
+
   Future<String> _rutaSesion() async => _rutaDe('finanzapp_sesion.txt');
 
   // Guarda la sesion activa (se llama al iniciar sesion y al registrarse).
